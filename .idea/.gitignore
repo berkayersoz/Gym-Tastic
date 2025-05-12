@@ -1,0 +1,76 @@
+# JetBrains shelf and workspace
+
+/shelf/
+/workspace.xml
+
+# IntelliJ HTTP Client requests
+
+/httpRequests/
+
+# Data source local storage
+
+/dataSources/
+/dataSources.local.xml
+
+# Virtual environments
+
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache files
+
+**pycache**/
+\*.py\[cod]
+\*\$py.class
+
+# SQLite databases
+
+\*.db
+\*.sqlite3
+
+# Flask instance folder
+
+instance/
+
+# Environment variables
+
+.env
+
+# IDE configuration files
+
+.vscode/
+.idea/
+
+# macOS system files
+
+.DS\_Store
+
+# Log files
+
+\*.log
+
+# Coverage reports
+
+.coverage
+htmlcov/
+
+# pytest cache
+
+.pytest\_cache/
+
+# Database migrations
+
+migrations/
+
+# Distribution / packaging
+
+build/
+dist/
+\*.egg-info/
+
+# Editor temporary and backup files
+
+\*\~
+\*.swp

@@ -26,42 +26,86 @@ user_bp = Blueprint('user', __name__)
 
 @user_bp.route('/register', methods=['POST'])
 def register():
-    """Register a new user and issue a JWT token."""
+    """Register a new user with both account and profile info, and issue a JWT."""
     data = request.json or {}
-    full_name = data.get('full_name')
-    username  = data.get('username')
-    password  = data.get('password')
-    email     = data.get('email')
-    role      = data.get('role', 'user')
 
-    if not all([full_name, username, password, email]):
-        return jsonify({'error': 'full_name, username, password, and email are required'}), 400
+    # required account fields
+    acct_fields   = ['full_name', 'username', 'password', 'email']
+    # required profile fields
+    profile_fields = ['gender', 'height', 'weight', 'birth_date', 'fitness_goal', 'activity_level']
+
+    missing = [f for f in acct_fields + profile_fields if f not in data]
+    if missing:
+        return jsonify({
+            'error': f'Missing required fields: {missing}'
+        }), 400
+
+    full_name     = data['full_name']
+    username      = data['username']
+    raw_password  = data['password']
+    email         = data['email']
+    role          = data.get('role', 'user')
+    gender        = data['gender']
+    try:
+        height    = float(data['height'])
+        weight    = float(data['weight'])
+        if height <= 0 or weight <= 0:
+            raise ValueError()
+    except ValueError:
+        return jsonify({'error': 'height and weight must be positive numbers'}), 400
+    birth_date    = data['birth_date']
+    fitness_goal  = data['fitness_goal']
+    activity_level= data['activity_level']
+    profilepic    = data.get('profilepic')
+
+    # validate optional profilepic base64
+    if profilepic:
+        import base64
+        try:
+            base64.b64decode(profilepic)
+        except Exception:
+            return jsonify({'error': 'Invalid base64 for profilepic'}), 400
+
+    hashed_password = hashlib.md5(raw_password.encode('utf-8')).hexdigest()
 
     conn = sqlite3.connect('fitness.db')
-    c = conn.cursor()
+    c    = conn.cursor()
+
+    # uniqueness checks
     c.execute("SELECT 1 FROM user WHERE username=?", (username,))
     if c.fetchone():
         conn.close()
         return jsonify({'error': 'Username already exists'}), 400
+
     c.execute("SELECT 1 FROM user WHERE email=?", (email,))
     if c.fetchone():
         conn.close()
         return jsonify({'error': 'Email already registered'}), 400
 
-    hashed_password = hashlib.md5(password.encode('utf-8')).hexdigest()
-
-    c.execute(
-        "INSERT INTO user(full_name, username, password, role, email, isActive) "
-        "VALUES (?, ?, ?, ?, ?, 1)",
-        (full_name, username, hashed_password, role, email)
-    )
+    # insert everything in one shot
+    c.execute("""
+        INSERT INTO user
+          (full_name, username, password, role, email,
+           gender, height, weight, profilepic,
+           birth_date, fitness_goal, activity_level,
+           isActive)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    """, (
+        full_name, username, hashed_password, role, email,
+        gender, height, weight, profilepic,
+        birth_date, fitness_goal, activity_level
+    ))
     conn.commit()
     user_id = c.lastrowid
     conn.close()
 
     # Issue JWT
     token = encode_auth_token(user_id, role)
-    return jsonify({'message': 'User registered successfully', 'userID': user_id, 'token': token}), 201
+    return jsonify({
+        'message':   'User registered successfully',
+        'userID':    user_id,
+        'token':     token
+    }), 201
 
 @user_bp.route('/login', methods=['POST'])
 def login():
@@ -69,7 +113,7 @@ def login():
     username = data.get('username')
     password = data.get('password')
 
-    if not all([username, password]):
+    if not username or not password:
         return jsonify({'error': 'username and password are required'}), 400
 
     conn = sqlite3.connect('fitness.db')
@@ -82,66 +126,18 @@ def login():
         return jsonify({'error': 'Username not found'}), 404
 
     stored_hash, role, is_active, user_id = row
-    # Verify password
     if hashlib.md5(password.encode('utf-8')).hexdigest() != stored_hash:
         return jsonify({'error': 'Incorrect password'}), 401
     if not is_active:
         return jsonify({'error': 'Account inactive'}), 403
 
     token = encode_auth_token(user_id, role)
-    return jsonify({'message': f'Welcome, {username}!', 'userID': user_id, 'token': token}), 200
+    return jsonify({
+        'message': f'Welcome, {username}!',
+        'userID': user_id,
+        'token': token
+    }), 200
 
-@user_bp.route('/createProfile', methods=['POST'])
-@token_required
-def create_profile(current_user_id):
-    data = request.json or {}
-    required_fields = ['gender', 'height', 'weight', 'birth_date', 'fitness_goal', 'activity_level']
-    if not all(field in data for field in required_fields):
-        return jsonify({'error': f'Missing required fields: {required_fields}'}), 400
-
-    # Validate numeric fields
-    try:
-        height = float(data['height'])
-        weight = float(data['weight'])
-        if height <= 0 or weight <= 0:
-            raise ValueError
-    except ValueError:
-        return jsonify({'error': 'height and weight must be positive numbers'}), 400
-
-    # Optional profilepic validation
-    profilepic = data.get('profilepic')
-    if profilepic:
-        import base64
-        try:
-            base64.b64decode(profilepic)
-        except Exception:
-            return jsonify({'error': 'Invalid base64 for profilepic'}), 400
-
-    conn = sqlite3.connect('fitness.db')
-    c = conn.cursor()
-    # Ensure user exists
-    c.execute("SELECT 1 FROM user WHERE userID=?", (current_user_id,))
-    if not c.fetchone():
-        conn.close()
-        return jsonify({'error': 'User not found'}), 404
-    # Prevent duplicate creation
-    c.execute("SELECT gender FROM user WHERE userID=? AND gender IS NOT NULL", (current_user_id,))
-    if c.fetchone():
-        conn.close()
-        return jsonify({'error': 'Profile already exists; use updateUserProfile'}), 400
-
-    # Update profile fields
-    c.execute(
-        """
-        UPDATE user SET gender=?, height=?, weight=?, profilepic=?, birth_date=?,
-                     fitness_goal=?, activity_level=? WHERE userID=?
-        """,
-        (data['gender'], height, weight, profilepic, data['birth_date'],
-         data['fitness_goal'], data['activity_level'], current_user_id)
-    )
-    conn.commit()
-    conn.close()
-    return jsonify({'message': 'Profile created successfully'}), 201
 
 @user_bp.route('/updateUserProfile', methods=['PUT'])
 @token_required
@@ -181,6 +177,7 @@ def update_user_profile(current_user_id):
                 val = 1 if val else 0
             elif field == 'password':
                 val = hashlib.md5(val.encode('utf-8')).hexdigest()
+
             updates.append(f"{field} = ?")
             params.append(val)
 
@@ -191,10 +188,14 @@ def update_user_profile(current_user_id):
     # Uniqueness checks
     if 'username' in data:
         c.execute("SELECT 1 FROM user WHERE username=? AND userID!=?", (data['username'], current_user_id))
-        if c.fetchone(): conn.close(); return jsonify({'error': 'Username taken'}), 400
+        if c.fetchone():
+            conn.close()
+            return jsonify({'error': 'Username taken'}), 400
     if 'email' in data:
         c.execute("SELECT 1 FROM user WHERE email=? AND userID!=?", (data['email'], current_user_id))
-        if c.fetchone(): conn.close(); return jsonify({'error': 'Email in use'}), 400
+        if c.fetchone():
+            conn.close()
+            return jsonify({'error': 'Email in use'}), 400
 
     # Execute update
     sql = f"UPDATE user SET {', '.join(updates)} WHERE userID=?"

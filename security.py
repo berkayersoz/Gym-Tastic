@@ -2,7 +2,7 @@ import jwt  # from PyJWT
 from datetime import datetime, timedelta
 from flask import current_app, request, jsonify
 from functools import wraps
-
+# update for commit
 def encode_auth_token(user_id, role):
     payload = {
         'exp': datetime.utcnow() + timedelta(days=1),

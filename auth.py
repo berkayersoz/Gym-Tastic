@@ -4,6 +4,7 @@ Google Authentication module for Fitness Application
 This module provides endpoints for handling Google authentication.
 It allows users to sign in or register with their Google accounts.
 """
+# update for commit
 from flask import Blueprint, request, jsonify
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
