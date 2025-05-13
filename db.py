@@ -2,7 +2,7 @@ import sqlite3
 import re
 import pandas as pd
 
-# update for commit
+
 def createDB(dbname):
     conn = sqlite3.connect(dbname)
     c = conn.cursor()
@@ -72,12 +72,13 @@ def createDB(dbname):
               "title TEXT NOT NULL)")
 
     # Exercise table
-    c.execute("CREATE TABLE IF NOT EXISTS exercise(exerciseID INTEGER PRIMARY KEY, "
-              "name TEXT NOT NULL, "
-              "category TEXT NOT NULL, "
-              "targetedBodyParts TEXT NOT NULL, "
-              "requieredEquipment TEXT NOT NULL, "
-              "videoURL TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS exercise("
+        "exerciseID INTEGER PRIMARY KEY, "
+        "name TEXT NOT NULL, "
+        "category TEXT NOT NULL, "
+        "targetedBodyParts TEXT NOT NULL, "
+        "requiredEquipment TEXT NOT NULL, "
+        "videoURL TEXT)")
 
     # Workout Session table
     c.execute("CREATE TABLE IF NOT EXISTS workoutSession(sessionID INTEGER PRIMARY KEY, "
@@ -390,75 +391,9 @@ def insert_exercise_sets(dbname):
     ]
     try:
         c.executemany(
-            "INSERT INTO exercise (name, category, targetedBodyParts, requieredEquipment) VALUES (?, ?, ?, ?)",
-            exercises)
+                    "INSERT INTO exercise (name, category, targetedBodyParts, requiredEquipment) VALUES (?, ?, ?, ?)",exercises)
         conn.commit()
         print("Exercise sets inserted successfully!")
-    except sqlite3.Error as e:
-        print(f"Database error: {e}")
-    finally:
-        conn.close()
-
-
-def create_profile(dbname):
-    conn = sqlite3.connect(dbname)
-    c = conn.cursor()
-    try:
-        print("Enter your profile details:")
-        userID = int(input("Enter your user ID: ").strip())
-
-        c.execute("SELECT * FROM user WHERE userID = ?", (userID,))
-        if not c.fetchone():
-            print("Error: User with this ID does not exist.")
-            return
-
-        c.execute("SELECT gender FROM user WHERE userID = ? AND gender IS NOT NULL", (userID,))
-        if c.fetchone():
-            print("Error: Profile already exists for this user. Please use updateUserProfile to modify it.")
-            return
-            
-        gender = input("Enter gender (Male/Female): ").strip().capitalize()
-        if gender not in ["Male", "Female"]:
-            print("Error: Gender must be 'Male' or 'Female'.")
-            return
-        try:
-            height = float(input("Enter height in cm: ").strip())
-            if height <= 0:
-                print("Error: Height must be a positive number.")
-                return
-        except ValueError:
-            print("Error: Invalid height input. Please enter a numeric value.")
-            return
-        try:
-            weight = float(input("Enter weight in kg: ").strip())
-            if weight <= 0:
-                print("Error: Weight must be a positive number.")
-                return
-        except ValueError:
-            print("Error: Invalid weight input. Please enter a numeric value.")
-            return
-
-        print("Enter base64 encoded profile picture (or press Enter to skip):")
-        profilepic = input().strip()
-        if profilepic:
-            try:
-                import base64
-                base64.b64decode(profilepic)
-            except Exception:
-                print("Error: Invalid base64 encoded string for profile picture.")
-                return
-                
-        birth_date = input("Enter birth date (YYYY-MM-DD): ").strip()
-        fitness_goal = input("Enter fitness goal: ").strip()
-        activity_level = input("Enter activity level: ").strip()
-
-        c.execute(
-            "UPDATE user SET gender = ?, height = ?, weight = ?, profilepic = ?, "
-            "birth_date = ?, fitness_goal = ?, activity_level = ? WHERE userID = ?",
-            (gender, height, weight, profilepic, birth_date, fitness_goal, activity_level, userID))
-        
-        conn.commit()
-        print("Profile updated successfully!")
     except sqlite3.Error as e:
         print(f"Database error: {e}")
     finally:
